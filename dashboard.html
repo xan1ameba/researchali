@@ -1,0 +1,569 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Automation &amp; Startup Failure: Research Findings</title>
+  <script src="https://unpkg.com/react@18.3.1/umd/react.production.min.js"></script>
+  <script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.production.min.js"></script>
+  <script src="https://unpkg.com/prop-types@15.8.1/prop-types.min.js"></script>
+  <script src="https://unpkg.com/recharts@2.12.7/umd/Recharts.js"></script>
+  <script src="https://unpkg.com/@babel/standalone@7.25.6/babel.min.js"></script>
+  <style>
+    :root {
+      --navy:      #2d3a5c;
+      --panel:     #34456b;
+      --panel-2:   #3c507e;
+      --cream:     #f5f0e1;
+      --cream-dim: #cdc7b6;
+      --muted:     #9aa3bd;
+      --line:      rgba(245,240,225,0.13);
+      --line-soft: rgba(245,240,225,0.07);
+      --blue:      #5b9bd5;
+      --gold:      #f5c14e;
+      --green:     #3ecf8e;
+      --amber:     #eba53a;
+      --red:       #f2635c;
+      --sans: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; padding: 0; }
+    body {
+      background: var(--navy); color: var(--cream); font-family: var(--sans);
+      line-height: 1.5; -webkit-font-smoothing: antialiased; overflow-x: hidden;
+    }
+    a { color: var(--gold); }
+    .wrap { max-width: 1180px; margin: 0 auto; padding: clamp(14px, 2.4vw, 34px); }
+
+    header.top { border-bottom: 1px solid var(--line); background: linear-gradient(180deg, rgba(255,255,255,0.03), transparent); }
+    .eyebrow { text-transform: uppercase; letter-spacing: .18em; font-size: clamp(11px,1.1vw,13px); font-weight: 700; color: var(--gold); margin: 0 0 8px; }
+    h1.title { margin: 0; font-weight: 800; letter-spacing: -0.01em; font-size: clamp(26px,4.4vw,46px); line-height: 1.08; }
+    .subtitle { color: var(--cream-dim); margin: 9px 0 0; font-size: clamp(14px,1.6vw,18px); max-width: 64ch; }
+
+    /* Density: tighter section rhythm (~40% less vertical space) */
+    section { margin-top: clamp(11px, 1.7vw, 20px); }
+    .grid { display: grid; gap: clamp(10px, 1.4vw, 16px); }
+    .cols-2 { grid-template-columns: repeat(2, 1fr); }
+    .cols-3 { grid-template-columns: repeat(3, 1fr); }
+    .cols-4 { grid-template-columns: repeat(4, 1fr); }
+    .card { background: var(--panel); border: 1px solid var(--line); border-radius: 16px; padding: clamp(16px, 2vw, 24px); }
+    .card h2 { margin: 0 0 3px; font-size: clamp(18px,2.1vw,24px); font-weight: 700; letter-spacing: -0.01em; }
+    .card .lede { color: var(--cream-dim); margin: 0 0 14px; font-size: clamp(13px,1.4vw,15px); }
+    .sec-num { display: inline-block; font-size: 12px; font-weight: 800; letter-spacing: .12em; color: var(--gold); text-transform: uppercase; margin-bottom: 5px; }
+    .source { margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--line-soft); color: var(--muted); font-size: clamp(11px,1.15vw,12.5px); font-style: italic; }
+
+    /* Hero */
+    .hero {
+      background: radial-gradient(1200px 400px at 15% -20%, rgba(245,193,78,0.14), transparent 60%), var(--panel);
+      display: grid; grid-template-columns: minmax(0,0.95fr) minmax(0,1.05fr); gap: clamp(18px,3vw,40px); align-items: center;
+    }
+    .hero .bignum { font-size: clamp(60px,11.5vw,124px); font-weight: 800; line-height: .9; letter-spacing: -0.03em; color: var(--gold); text-shadow: 0 2px 30px rgba(245,193,78,0.18); }
+    .hero .bignum small { display:block; font-size: clamp(15px,1.9vw,20px); font-weight:600; color: var(--cream); letter-spacing: 0; margin-top: 10px; }
+    .hero .rq-label { text-transform: uppercase; letter-spacing:.16em; font-size: 12px; font-weight:700; color: var(--gold); margin: 0 0 10px; }
+    .hero .rq { font-size: clamp(18px,2.4vw,27px); font-weight: 600; line-height: 1.35; margin: 0; }
+    .hero .rq em { color: var(--gold); font-style: normal; }
+
+    /* Status pills */
+    .pill { display: inline-flex; align-items: center; gap: 7px; font-weight: 700; font-size: clamp(12px,1.3vw,14px); padding: 5px 12px; border-radius: 999px; white-space: nowrap; }
+    .pill .dot { width: 9px; height: 9px; border-radius: 50%; flex: none; }
+    .pill.high { background: rgba(62,207,142,0.15); color: var(--green); } .pill.high .dot { background: var(--green); }
+    .pill.med  { background: rgba(235,165,58,0.15); color: var(--amber); } .pill.med .dot { background: var(--amber); }
+    .pill.low  { background: rgba(242,99,92,0.16); color: var(--red); }    .pill.low .dot { background: var(--red); }
+
+    /* Table */
+    table.matrix { width: 100%; border-collapse: collapse; }
+    table.matrix th { text-align: left; font-size: 12px; text-transform: uppercase; letter-spacing:.1em; color: var(--muted); font-weight: 700; padding: 0 12px 9px; border-bottom: 1px solid var(--line); }
+    table.matrix td { padding: 11px 12px; border-bottom: 1px solid var(--line-soft); vertical-align: middle; }
+    table.matrix tr:last-child td { border-bottom: none; }
+    table.matrix .domain { font-weight: 600; font-size: clamp(14px,1.5vw,16px); }
+    table.matrix .note { color: var(--cream-dim); font-size: clamp(12px,1.3vw,13.5px); }
+
+    .callout { margin-top: 14px; display: flex; gap: 13px; align-items: flex-start; background: rgba(242,99,92,0.10); border: 1px solid rgba(242,99,92,0.35); border-radius: 12px; padding: 13px 15px; }
+    .callout .mark { font-size: 21px; line-height: 1; flex: none; }
+    .callout p { margin: 0; font-size: clamp(13px,1.5vw,15.5px); }
+    .callout b { color: var(--red); }
+    .callout.amber { background: rgba(235,165,58,0.10); border-color: rgba(235,165,58,0.38); }
+    .callout.amber b { color: var(--amber); }
+
+    /* Stat tiles */
+    .tiles { display: grid; gap: 12px; }
+    .tile { background: var(--panel-2); border: 1px solid var(--line); border-radius: 12px; padding: 15px 16px; }
+    .tile .val { font-size: clamp(28px,3.9vw,42px); font-weight: 800; line-height: 1; letter-spacing: -0.02em; }
+    .tile .val.blue { color: var(--blue); } .tile .val.gold { color: var(--gold); } .tile .val.green { color: var(--green); } .tile .val.red { color: var(--red); }
+    .tile .lbl { color: var(--cream-dim); font-size: clamp(12px,1.3vw,13.5px); margin-top: 7px; }
+    .tile .sub { color: var(--muted); font-size: 11px; margin-top: 3px; }
+    .tile.accent { background: rgba(245,193,78,0.10); border-color: rgba(245,193,78,0.32); }
+
+    /* Significance rows */
+    .sig-row { display: flex; align-items: center; gap: 12px; padding: 11px 14px; border-radius: 10px; background: var(--panel-2); border: 1px solid var(--line); margin-top: 9px; }
+    .sig-row .icon { font-size: 19px; flex: none; } .sig-row .txt { font-size: clamp(13px,1.5vw,15px); }
+    .sig-row.yes { border-color: rgba(62,207,142,0.4); } .sig-row.no { border-color: rgba(154,163,189,0.4); }
+    .stat-tag { font-variant-numeric: tabular-nums; color: var(--cream-dim); font-size: 13px; white-space: nowrap; margin-left: auto; }
+
+    /* Evidence split panel */
+    .ev-head { display: flex; align-items: center; gap: 9px; font-size: 13px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; margin: 2px 0 10px; }
+    .ev-head.win { color: var(--green); } .ev-head.limit { color: var(--red); }
+    .ev-item { background: var(--panel-2); border: 1px solid var(--line); border-radius: 12px; padding: 14px 16px; margin-bottom: 10px; }
+    .ev-item:last-child { margin-bottom: 0; }
+    .ev-item .num { font-size: clamp(22px,3vw,30px); font-weight: 800; line-height: 1; letter-spacing: -0.02em; }
+    .ev-item.win .num { color: var(--green); } .ev-item.limit .num { color: var(--gold); }
+    .ev-item .desc { color: var(--cream-dim); font-size: clamp(12.5px,1.4vw,14px); margin-top: 6px; }
+
+    /* Company cards */
+    .company { background: var(--panel-2); border: 1px solid var(--line); border-left: 5px solid var(--gold); border-radius: 12px; padding: 16px 18px; display: flex; flex-direction: column; gap: 9px; }
+    .company .cname { display: flex; align-items: baseline; gap: 9px; flex-wrap: wrap; }
+    .company h3 { margin: 0; font-size: clamp(16px,1.9vw,20px); font-weight: 800; }
+    .company .cat { color: var(--muted); font-size: 12px; font-weight: 600; }
+    .company .built { color: var(--cream); font-size: clamp(13px,1.45vw,14.5px); margin: -2px 0 2px; }
+    .company .cstats { display: flex; flex-wrap: wrap; gap: 8px; }
+    .company .cstat { background: rgba(245,193,78,0.10); border: 1px solid rgba(245,193,78,0.28); border-radius: 8px; padding: 6px 10px; }
+    .company .cstat .v { font-weight: 800; color: var(--gold); font-size: clamp(14px,1.6vw,17px); line-height: 1; }
+    .company .cstat .k { color: var(--cream-dim); font-size: 10.5px; text-transform: uppercase; letter-spacing: .04em; margin-top: 3px; }
+    .tools { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 2px; }
+    .chip { background: rgba(91,155,213,0.15); border: 1px solid rgba(91,155,213,0.3); color: var(--cream); font-size: 11.5px; font-weight: 600; padding: 3px 9px; border-radius: 6px; }
+    .csrc { color: var(--muted); font-size: 11.5px; margin-top: auto; padding-top: 4px; }
+
+    /* Conclusion */
+    .conclusion { background: linear-gradient(135deg, rgba(245,193,78,0.16), rgba(91,155,213,0.10)), var(--panel); border: 1px solid rgba(245,193,78,0.4); border-radius: 16px; padding: clamp(22px,3.6vw,40px); text-align: center; }
+    .conclusion .k { text-transform: uppercase; letter-spacing:.2em; font-size: 12px; font-weight: 800; color: var(--gold); margin: 0 0 12px; }
+    .conclusion p { margin: 0 auto; max-width: 52ch; font-size: clamp(18px,2.6vw,28px); font-weight: 600; line-height: 1.4; }
+    .conclusion p em { color: var(--gold); font-style: normal; }
+
+    /* Recharts hover tooltip */
+    .tip { background: #1f2942; border: 1px solid var(--line); border-radius: 10px; padding: 9px 12px; box-shadow: 0 8px 30px rgba(0,0,0,0.4); }
+    .tip .tip-name { font-weight: 700; font-size: 14px; margin-bottom: 2px; }
+    .tip .tip-val { font-size: 19px; font-weight: 800; color: var(--gold); }
+    .tip .tip-src { color: var(--muted); font-size: 11px; font-style: italic; margin-top: 4px; }
+
+    /* ---- Citation tooltip system ---- */
+    .cite { border-bottom: 1px dotted rgba(245,240,225,0.55); cursor: help; }
+    .infodot { display: inline-flex; align-items: center; justify-content: center; width: 15px; height: 15px; border-radius: 50%; border: 1px solid currentColor; font-size: 10px; font-style: italic; font-weight: 800; font-family: Georgia, serif; line-height: 1; margin-left: 5px; color: var(--gold); cursor: help; vertical-align: middle; opacity: .9; }
+    .infodot:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
+    .infodot.inline { color: var(--muted); }
+    .srctip { position: fixed; z-index: 100; max-width: 290px; background: #1f2942; border: 1px solid rgba(245,193,78,0.4); border-radius: 10px; padding: 11px 13px; box-shadow: 0 10px 34px rgba(0,0,0,0.5); pointer-events: none; font-size: 13px; line-height: 1.45; }
+    .srctip .n { font-weight: 800; color: var(--gold); }
+    .srctip .c { color: var(--cream-dim); margin-top: 4px; display: block; }
+
+    footer.foot { text-align:center; color: var(--muted); font-size: 12.5px; padding: 26px 0 8px; border-top: 1px solid var(--line-soft); margin-top: 26px; }
+
+    @media (max-width: 900px) {
+      .cols-3 { grid-template-columns: repeat(2, 1fr); }
+    }
+    @media (max-width: 860px) {
+      .cols-2, .cols-4, .hero { grid-template-columns: 1fr; }
+      .hero .bignum { text-align: center; }
+    }
+    @media (max-width: 560px) {
+      .cols-2, .cols-3, .cols-4 { grid-template-columns: 1fr; }
+      table.matrix .note { display: none; }
+    }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+
+  <script>
+    window.addEventListener('error', function (e) {
+      var root = document.getElementById('root');
+      if (root && !root.hasChildNodes()) {
+        root.innerHTML =
+          '<div style="max-width:760px;margin:60px auto;padding:24px;border:1px solid rgba(242,99,92,.5);' +
+          'border-radius:12px;background:#3c507e;font-family:system-ui,sans-serif;color:#f5f0e1">' +
+          '<h2 style="margin:0 0 8px;color:#f2635c">Couldn’t render the dashboard</h2>' +
+          '<p style="margin:0 0 6px">' + (e.message || 'Unknown error') + '</p>' +
+          '<p style="margin:0;color:#9aa3bd;font-size:13px">Most likely a script failed to load — check your internet connection and reload. ' +
+          'If you’re offline, ask for the fully self-contained (offline) build.</p></div>';
+      }
+    });
+  </script>
+
+  <script type="text/babel" data-presets="react">
+    const { useState, useContext, createContext } = React;
+    const {
+      ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid,
+      Tooltip, Cell, LabelList
+    } = Recharts;
+
+    const C = {
+      navy:'#2d3a5c', cream:'#f5f0e1', dim:'#cdc7b6', muted:'#9aa3bd',
+      blue:'#5b9bd5', gold:'#f5c14e', green:'#3ecf8e', amber:'#eba53a', red:'#f2635c',
+      line:'rgba(245,240,225,0.13)'
+    };
+
+    /* ============ CITATION SOURCES ============ */
+    const SOURCES = {
+      range:      { name:'Widely reported', year:null, ctx:'Estimates cluster in the 70–90% range across sources (e.g. Startup Genome, CB Insights, U.S. BLS survival data).' },
+      cbinsights: { name:'CB Insights', year:2021, ctx:'Analysis of 111 startup post-mortems written by the founders of failed companies (“The Top 12 Reasons Startups Fail”).' },
+      matrix:     { name:'Author’s synthesis', year:null, ctx:'Maps CB Insights failure causes onto the capabilities of current automation tooling; automatability rated High / Low.' },
+      survey:     { name:'Primary founder survey', year:null, ctx:'n = 83 early-stage founders; independent-samples t-tests comparing automation users vs. non-users.' },
+      hubspot:    { name:'HubSpot', year:2023, ctx:'Startups using AI-assisted content + email automation saw ~45% lower customer acquisition cost and ~30% higher conversion vs. manual outreach.' },
+      salesforce: { name:'Salesforce, State of Marketing', year:2022, ctx:'Survey of 7,700 marketers across 35 countries; high-performing teams are 2.1× more likely to use AI than underperformers.' },
+      wasserman:  { name:'Wasserman, The Founder’s Dilemmas', year:2012, ctx:'Dataset of ~9,900 founders; co-founder conflict and misaligned incentives are a leading predictor of early failure.' },
+      crowne:     { name:'Crowne', year:2002, ctx:'Startups are most vulnerable in their first two lifecycle stages (initial development and stabilization) due to resource scarcity.' },
+      bubble:     { name:'Bubble platform data', year:2022, ctx:'Over 40% of Bubble’s users launch revenue-generating apps with zero engineering staff.' },
+      nomtek:     { name:'Nomtek, “11 Successful No-Code Startups”', year:null, ctx:'Industry roundup documenting companies that built and scaled products using no-code tools.' },
+      wearenocode:{ name:'WeAreNoCode case study', year:null, ctx:'Documented no-code build and funding history; corroborated by LinkedIn / company disclosures.' },
+      rapiddev:   { name:'Rapid Dev, “Top No-Code Startups”', year:null, ctx:'Industry roundup of no-code-built startups and their reported traction.' },
+      nocodemba:  { name:'No Code MBA case study', year:null, ctx:'Founder-reported build cost and tool stack for a no-code product that later raised venture funding.' },
+    };
+
+    const TipCtx = createContext({ show: () => {}, hide: () => {} });
+
+    function Cite({ id, children }) {
+      const { show, hide } = useContext(TipCtx);
+      const handlers = {
+        onMouseEnter: (e) => show(id, e.currentTarget),
+        onMouseLeave: hide,
+        onFocus: (e) => show(id, e.currentTarget),
+        onBlur: hide,
+        tabIndex: 0,
+      };
+      if (children == null) {
+        return <span className="infodot" role="button" aria-label="View source" {...handlers}>i</span>;
+      }
+      return <span className="cite" {...handlers}>{children}<span className="infodot inline">i</span></span>;
+    }
+
+    function SourceTooltip({ tip }) {
+      const s = tip.s;
+      const vw = window.innerWidth, vh = window.innerHeight;
+      const left = Math.min(Math.max(tip.x, 152), vw - 152);
+      const above = tip.top > 170;
+      const style = { left, transform: 'translateX(-50%)' };
+      if (above) style.bottom = vh - tip.top + 10; else style.top = tip.bottom + 10;
+      return (
+        <div className="srctip" style={style}>
+          <span className="n">{s.name}{s.year ? ` (${s.year})` : ''}</span>
+          <span className="c">{s.ctx}</span>
+        </div>
+      );
+    }
+
+    /* ============ chart tooltip ============ */
+    function makeTip(source, unit) {
+      return function Tip({ active, payload }) {
+        if (!active || !payload || !payload.length) return null;
+        const p = payload[0].payload;
+        return (
+          <div className="tip">
+            <div className="tip-name">{p.full || p.name}</div>
+            <div className="tip-val">{p.value}{unit}</div>
+            <div className="tip-src">{source}</div>
+          </div>
+        );
+      };
+    }
+
+    /* ============ 1. HERO ============ */
+    function Hero() {
+      return (
+        <section>
+          <div className="card hero">
+            <div>
+              <div className="bignum">70–90%<Cite id="range" />
+                <small>of startups fail within their first few years</small>
+              </div>
+            </div>
+            <div>
+              <p className="rq-label">Research Question</p>
+              <p className="rq">To what extent does <em>automation</em> reduce the common causes of startup failure?</p>
+            </div>
+          </div>
+        </section>
+      );
+    }
+
+    /* ============ 2. CAUSES ============ */
+    const causes = [
+      { name:'No market need',  full:'No market need',        value:42, key:true },
+      { name:'Ran out of cash', full:'Running out of cash',   value:29 },
+      { name:'Wrong team',      full:'Not the right team',    value:23 },
+      { name:'Outcompeted',     full:'Outcompeted',           value:19 },
+      { name:'Pricing / cost',  full:'Pricing / cost issues', value:18 },
+    ];
+    const CausesTip = makeTip('Source: CB Insights, 2021', '%');
+    function Causes() {
+      return (
+        <div className="card">
+          <span className="sec-num">02 · Why startups fail</span>
+          <h2>Top causes of startup failure</h2>
+          <p className="lede">% of founders citing each cause <Cite id="cbinsights">(multiple selections allowed)</Cite></p>
+          <ResponsiveContainer width="100%" height={272}>
+            <BarChart data={causes} layout="vertical" margin={{ top: 4, right: 46, bottom: 4, left: 8 }} barCategoryGap="26%">
+              <CartesianGrid horizontal={false} stroke={C.line} />
+              <XAxis type="number" domain={[0, 50]} tick={{ fill: C.muted, fontSize: 12 }} axisLine={{ stroke: C.line }} tickLine={false} unit="%" />
+              <YAxis type="category" dataKey="name" width={116} tick={{ fill: C.cream, fontSize: 13 }} axisLine={false} tickLine={false} />
+              <Tooltip cursor={{ fill: 'rgba(255,255,255,0.05)' }} content={<CausesTip />} />
+              <Bar dataKey="value" radius={[0, 4, 4, 0]} barSize={20} isAnimationActive={false}>
+                {causes.map((d, i) => <Cell key={i} fill={d.key ? C.gold : C.blue} />)}
+                <LabelList dataKey="value" position="right" formatter={(v)=>v+'%'} fill={C.cream} fontSize={13} fontWeight={700} />
+              </Bar>
+            </BarChart>
+          </ResponsiveContainer>
+          <p className="source">Source: CB Insights (2021) · n = 111 founder-written post-mortems <Cite id="cbinsights" /></p>
+        </div>
+      );
+    }
+
+    /* ============ 3. MATURITY ============ */
+    const domains = [
+      { d:'Financial management & cash flow',        lvl:'high', note:'Invoicing, forecasting, reconciliation are highly rule-based' },
+      { d:'Marketing & customer acquisition',        lvl:'high', note:'Scheduling, email, ad optimization scale well with tools' },
+      { d:'Operational efficiency & team structure', lvl:'high', note:'Workflows and reporting are readily systematized' },
+      { d:'Product–market fit validation',           lvl:'low',  note:'Requires human judgment, intuition & customer empathy' },
+      { d:'External environment / regulatory',       lvl:'low',  note:'Legal & macro forces sit outside a founder’s toolset' },
+    ];
+    const lvlMap = { high:{cls:'high',label:'High'}, med:{cls:'med',label:'Medium'}, low:{cls:'low',label:'Low'} };
+    function Maturity() {
+      return (
+        <div className="card">
+          <span className="sec-num">03 · Where automation reaches</span>
+          <h2>Automation maturity by failure domain</h2>
+          <p className="lede">How addressable each failure domain is with today’s automation tooling <Cite id="matrix" /></p>
+          <table className="matrix">
+            <thead><tr><th>Failure domain</th><th>Automatability</th><th>Why</th></tr></thead>
+            <tbody>
+              {domains.map((r, i) => {
+                const m = lvlMap[r.lvl];
+                return (
+                  <tr key={i}>
+                    <td className="domain">{r.d}</td>
+                    <td><span className={'pill ' + m.cls}><span className="dot"></span>{m.label}</span></td>
+                    <td className="note">{r.note}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+          <div className="callout">
+            <span className="mark">⚠️</span>
+            <p>The <b>#1 cause of failure — product–market fit</b> — is the <b>least addressable by automation.</b> Tools sharpen execution, but they can’t tell you whether anyone wants the product.</p>
+          </div>
+          <p className="source">Source: Author’s synthesis mapping CB Insights failure causes to automation-tool capabilities <Cite id="matrix" /></p>
+        </div>
+      );
+    }
+
+    /* ============ 4. SURVEY (densified) ============ */
+    const adoption = [
+      { name:'Social media scheduling',    full:'Social media scheduling',          value:47 },
+      { name:'AI writing assistants',      full:'AI writing assistants',            value:39 },
+      { name:'No-code website builders',   full:'No-code website builders',         value:34 },
+      { name:'Financial / analytics auto', full:'Financial / analytics automation', value:18 },
+    ];
+    const AdoptTip = makeTip('Founder survey, n = 83', '%');
+    function Survey() {
+      return (
+        <div className="card">
+          <span className="sec-num">04 · Founder survey · n = 83</span>
+          <h2>What founders actually use — and how it feels</h2>
+          <p className="lede">Self-reported adoption and perceived impact of automation tools <Cite id="survey" /></p>
+
+          {/* compact stat-tile row: 4 headline numbers at a glance */}
+          <div className="tiles cols-4">
+            <div className="tile accent">
+              <div className="val gold">61%</div>
+              <div className="lbl">use <b style={{color:C.cream}}>at least one</b> automation tool <Cite id="survey" /></div>
+            </div>
+            <div className="tile">
+              <div className="val green">4.12</div>
+              <div className="lbl">Time savings</div>
+              <div className="sub">mean, 1–5 scale</div>
+            </div>
+            <div className="tile">
+              <div className="val green">3.89</div>
+              <div className="lbl">Marketing effectiveness</div>
+              <div className="sub">mean, 1–5 scale</div>
+            </div>
+            <div className="tile">
+              <div className="val blue">3.41</div>
+              <div className="lbl">Cost reduction</div>
+              <div className="sub">mean, 1–5 scale</div>
+            </div>
+          </div>
+
+          <div className="grid cols-2" style={{ alignItems:'start', marginTop:'14px' }}>
+            <div>
+              <h3 style={{ margin:'2px 0 8px', fontSize:'15px', color:C.dim, fontWeight:700 }}>Tool adoption rate</h3>
+              <ResponsiveContainer width="100%" height={210}>
+                <BarChart data={adoption} layout="vertical" margin={{ top: 2, right: 44, bottom: 2, left: 8 }} barCategoryGap="28%">
+                  <CartesianGrid horizontal={false} stroke={C.line} />
+                  <XAxis type="number" domain={[0, 60]} tick={{ fill: C.muted, fontSize: 11 }} axisLine={{ stroke: C.line }} tickLine={false} unit="%" />
+                  <YAxis type="category" dataKey="name" width={128} tick={{ fill: C.cream, fontSize: 12 }} axisLine={false} tickLine={false} />
+                  <Tooltip cursor={{ fill:'rgba(255,255,255,0.05)' }} content={<AdoptTip />} />
+                  <Bar dataKey="value" fill={C.blue} radius={[0,4,4,0]} barSize={18} isAnimationActive={false}>
+                    <LabelList dataKey="value" position="right" formatter={(v)=>v+'%'} fill={C.cream} fontSize={12} fontWeight={700} />
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+            <div>
+              <h3 style={{ margin:'2px 0 8px', fontSize:'15px', color:C.dim, fontWeight:700 }}>Statistical signal</h3>
+              <div className="sig-row yes">
+                <span className="icon">✅</span>
+                <span className="txt"><b>Operational confidence:</b> automation users scored <b>significantly higher</b></span>
+                <span className="stat-tag">t = 3.27 · p = .002</span>
+              </div>
+              <div className="sig-row no">
+                <span className="icon">➖</span>
+                <span className="txt"><b>Product–market-fit confidence:</b> <b>no significant difference</b></span>
+                <span className="stat-tag">p = .35</span>
+              </div>
+              <p style={{ color:C.muted, fontSize:'12.5px', margin:'10px 2px 0', lineHeight:1.45 }}>
+                Automation lifts how founders <em>run</em> the business — not their conviction that the product is right.
+              </p>
+            </div>
+          </div>
+          <p className="source">Source: Primary founder survey (n = 83); independent-samples t-tests, automation users vs. non-users <Cite id="survey" /></p>
+        </div>
+      );
+    }
+
+    /* ============ 5. WIDER EVIDENCE (new cited stats) ============ */
+    function Evidence() {
+      return (
+        <div className="card">
+          <span className="sec-num">05 · The wider evidence</span>
+          <h2>What the broader literature shows</h2>
+          <p className="lede">Independent datasets on where automation measurably helps — and where it can’t reach</p>
+          <div className="grid cols-2" style={{ alignItems:'start' }}>
+            <div>
+              <div className="ev-head win">▲ Where automation moves the needle</div>
+              <div className="ev-item win">
+                <div className="num">−45% CAC · +30% conversion</div>
+                <div className="desc">Startups using AI-assisted content + email automation vs. manual outreach. <Cite id="hubspot" /></div>
+              </div>
+              <div className="ev-item win">
+                <div className="num">2.1× more likely to use AI</div>
+                <div className="desc">High-performing marketing teams vs. underperformers, across 7,700 marketers in 35 countries. <Cite id="salesforce" /></div>
+              </div>
+              <div className="ev-item win">
+                <div className="num">40%+ ship with zero engineers</div>
+                <div className="desc">Share of Bubble users who launch revenue-generating apps with no engineering staff. <Cite id="bubble" /></div>
+              </div>
+            </div>
+            <div>
+              <div className="ev-head limit">▼ What automation can’t fix</div>
+              <div className="ev-item limit">
+                <div className="num">9,900 founders studied</div>
+                <div className="desc">Co-founder conflict & misaligned incentives are a leading predictor of early failure — a human factor no tool resolves. <Cite id="wasserman" /></div>
+              </div>
+              <div className="ev-item limit">
+                <div className="num">First 2 lifecycle stages</div>
+                <div className="desc">Startups are most vulnerable during initial development & stabilization, driven by resource scarcity. <Cite id="crowne" /></div>
+              </div>
+              <div className="callout" style={{ marginTop:'10px' }}>
+                <span className="mark">🧭</span>
+                <p>The evidence splits cleanly: automation compounds <b style={{color:C.green}}>execution</b>, but the failure modes rooted in <b>people and judgment</b> stay stubbornly human.</p>
+              </div>
+            </div>
+          </div>
+          <p className="source">Sources: HubSpot (2023) · Salesforce (2022) · Bubble (2022) · Wasserman (2012) · Crowne (2002) — hover each&nbsp;<span className="infodot inline" style={{position:'relative'}}>i</span>&nbsp;for detail</p>
+        </div>
+      );
+    }
+
+    /* ============ 6. REAL-WORLD EXAMPLES ============ */
+    const companies = [
+      { name:'Dividend Finance', cat:'Fintech', built:'Built its MVP with the no-code tool Bubble.',
+        stats:[{v:'$1B+', k:'loan sales processed'},{v:'$384M', k:'raised · Credit Suisse, LL Funds'}],
+        tools:['Bubble'], src:'nomtek' },
+      { name:'Comet', cat:'Freelancer marketplace', built:'Non-technical founder built it on Bubble, no coding background.',
+        stats:[{v:'$800K+', k:'monthly recurring revenue'},{v:'$12.8M', k:'venture funding'}],
+        tools:['Bubble'], src:'wearenocode' },
+      { name:'Teal', cat:'AI resume / job search', built:'Assembled from a stack of no-code tools.',
+        stats:[{v:'$11M', k:'raised · City Light, Flybridge'}],
+        tools:['Bubble','Webflow','Airtable','Zapier','HubSpot'], src:'wearenocode' },
+      { name:'Bloom Institute of Technology', cat:'Edtech · formerly Lambda School', built:'Ran an MVP for 3,000 students with no code.',
+        stats:[{v:'$4M', k:'seed'},{v:'$122M', k:'total raised'}],
+        tools:['Typeform','Airtable','Retool','Webflow'], src:'nomtek' },
+      { name:'Qoins', cat:'Fintech · debt payoff', built:'Debt-payoff app built entirely on Bubble.',
+        stats:[{v:'$4.5M', k:'user debt paid down'},{v:'$1.5M', k:'raised'}],
+        tools:['Bubble'], src:'rapiddev' },
+      { name:'Marlow', cat:'Coaching · founder Mary Fox', built:'Launched on Bubble for ~$79/mo + ~$200/mo of tooling, then secured VC backing.',
+        stats:[{v:'~$79/mo', k:'to run the build'},{v:'VC-backed', k:'rare for no-code'}],
+        tools:['Bubble','Zapier','Mailchimp','Sendgrid'], src:'nocodemba' },
+    ];
+    function Examples() {
+      return (
+        <div className="card">
+          <span className="sec-num">06 · Real-world examples</span>
+          <h2>Named companies built on automation &amp; no-code</h2>
+          <p className="lede">Verified, widely-reported cases — funding, revenue, and the tools behind them</p>
+          <div className="grid cols-3">
+            {companies.map((c, i) => (
+              <div className="company" key={i}>
+                <div className="cname"><h3>{c.name}</h3></div>
+                <div className="cat">{c.cat}</div>
+                <div className="built">{c.built}</div>
+                <div className="cstats">
+                  {c.stats.map((s, j) => (
+                    <div className="cstat" key={j}><div className="v">{s.v}</div><div className="k">{s.k}</div></div>
+                  ))}
+                </div>
+                <div className="tools">{c.tools.map((t, j) => <span className="chip" key={j}>{t}</span>)}</div>
+                <div className="csrc">Source <Cite id={c.src} /></div>
+              </div>
+            ))}
+          </div>
+          <div className="callout amber">
+            <span className="mark">📌</span>
+            <p><b>Survivorship bias, noted:</b> these are widely-reported <b>success</b> cases — most no-code / automation startups are far less visible and many do not make it. Read them alongside the survey data above for a balanced picture.</p>
+          </div>
+          <p className="source">Sources: Nomtek · WeAreNoCode · Rapid Dev · No Code MBA — hover each card’s source marker for detail</p>
+        </div>
+      );
+    }
+
+    /* ============ 7. CONCLUSION ============ */
+    function Conclusion() {
+      return (
+        <section>
+          <div className="conclusion">
+            <p className="k">Conclusion</p>
+            <p>Automation is a <em>conditionally effective</em> risk-reduction tool — <em>not</em> a silver bullet. It works best when introduced <em>after</em> validating the core business idea, not as a substitute for it.</p>
+          </div>
+        </section>
+      );
+    }
+
+    function App() {
+      const [tip, setTip] = useState(null);
+      const show = (id, el) => {
+        const s = SOURCES[id];
+        if (!s) return;
+        const r = el.getBoundingClientRect();
+        setTip({ s, x: r.left + r.width / 2, top: r.top, bottom: r.bottom });
+      };
+      const hide = () => setTip(null);
+
+      return (
+        <TipCtx.Provider value={{ show, hide }}>
+          <header className="top">
+            <div className="wrap">
+              <p className="eyebrow">Research Findings</p>
+              <h1 className="title">Automation &amp; Startup Failure</h1>
+              <p className="subtitle">Does automation — AI tools and no-code platforms — actually reduce the causes of startup failure? A synthesis of industry data, a founder survey, and real named companies. <em style={{color:C.gold, fontStyle:'normal'}}>Hover any dotted stat or ⓘ for its source.</em></p>
+            </div>
+          </header>
+          <div className="wrap">
+            <Hero />
+            <section className="grid"><Causes /></section>
+            <section className="grid"><Maturity /></section>
+            <section className="grid"><Survey /></section>
+            <section className="grid"><Evidence /></section>
+            <section className="grid"><Examples /></section>
+            <Conclusion />
+            <footer className="foot">
+              Automation &amp; Startup Failure: Research Findings · CB Insights (2021), HubSpot (2023), Salesforce (2022), Wasserman (2012), Crowne (2002), Bubble (2022) &amp; a primary founder survey (n = 83) · Built with React &amp; Recharts
+            </footer>
+          </div>
+          {tip && <SourceTooltip tip={tip} />}
+        </TipCtx.Provider>
+      );
+    }
+
+    ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+  </script>
+</body>
+</html>
